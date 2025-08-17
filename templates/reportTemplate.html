@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>{{reportTitle}}</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 8mm;
+      }
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
+      }
+      .page {
+        page-break-after: always;
+        border: 1px solid #ddd;
+        padding: 10px;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .title {
+        font-weight: 700;
+        font-size: 16px;
+      }
+      .meta {
+        font-size: 11px;
+        color: #333;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .box {
+        border: 1px solid #aaa;
+        padding: 8px;
+        border-radius: 4px;
+      }
+      .section-title {
+        text-align: center;
+        font-weight: 700;
+        margin: 6px 0;
+      }
+      table.meta {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      table.meta td {
+        font-size: 11px;
+        padding: 2px 4px;
+        border-bottom: 1px dashed #ccc;
+      }
+      .capability {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .footer-note {
+        font-size: 10px;
+        color: #666;
+        text-align: right;
+        margin-top: 6px;
+      }
+      .small {
+        font-size: 11px;
+      }
+      canvas {
+        width: 100%;
+        height: 260px;
+      }
+    </style>
+    <!-- Chart.js from CDN (works in Puppeteer) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  </head>
+  <body>
+    {{#each pages}}
+    <div class="page">
+      <div class="header">
+        <div class="title">Statistical Process Control Study Report</div>
+        <div class="meta">Generated: {{../generatedAt}}</div>
+      </div>
+
+      <table class="meta">
+        <tr>
+          <td><b>Op. Name</b> {{opName}}</td>
+          <td><b>Part no.</b> {{../partNo}}</td>
+          <td><b>Char. name</b> {{charName}}</td>
+        </tr>
+        <tr>
+          <td><b>Unit</b> {{unit}}</td>
+          <td><b>Nominal</b> {{nominal}}</td>
+          <td><b>USL/LSL</b> {{usl}} / {{lsl}}</td>
+        </tr>
+        <tr>
+          <td><b>Calc. Tol</b> {{calcTol}}</td>
+          <td><b>Subgrp size</b> {{subgrpSize}}</td>
+          <td><b>Samples</b> {{sampleCount}}</td>
+        </tr>
+      </table>
+
+      <div class="grid">
+        <div class="box">
+          <div class="section-title">Xbar Chart</div>
+          <canvas id="ts-{{@index}}"></canvas>
+        </div>
+        <div class="box">
+          <div class="section-title">Histogram</div>
+          <canvas id="hist-{{@index}}"></canvas>
+        </div>
+      </div>
+
+      <div class="box" style="margin-top: 8px">
+        <div class="section-title">Overall Evaluation</div>
+        <div class="capability small">
+          <div>
+            <b>Potential performance index (Pp)</b><br />
+            {{pp}}
+          </div>
+          <div>
+            <b>Critical performance index (Ppk)</b><br />
+            {{ppk}}
+          </div>
+          <div>
+            <b>Potential performance index (Cp)</b><br />
+            {{cp}}
+          </div>
+          <div>
+            <b>Critical performance index (Cpk)</b><br />
+            {{cpk}}
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-note">© Your Company — Confidential</div>
+    </div>
+    {{/each}}
+
+    <!-- Embed JSON safely -->
+    <script id="pages-data" type="application/json">
+      {{{json pages}}}
+    </script>
+
+    <script>
+      (function () {
+        // Parse JSON from the safe script block
+        const reportPages = JSON.parse(
+          document.getElementById("pages-data").textContent
+        );
+
+        const charts = [];
+        function makeTs(idx, series) {
+          const ctx = document.getElementById("ts-" + idx);
+          if (!ctx) return;
+          const labels = series.map((s) => s.x);
+          const data = series.map((s) => s.y);
+          return new Chart(ctx, {
+            type: "line",
+            data: {
+              labels,
+              datasets: [{ label: "Measure", data, fill: false, tension: 0.2 }],
+            },
+            options: {
+              responsive: false,
+              scales: { y: { beginAtZero: false } },
+              plugins: { legend: { display: false } },
+            },
+          });
+        }
+
+        function makeHist(idx, bins) {
+          const ctx = document.getElementById("hist-" + idx);
+          if (!ctx) return;
+          const labels = bins.map((b) => b.bin);
+          const data = bins.map((b) => b.count);
+          return new Chart(ctx, {
+            type: "bar",
+            data: { labels, datasets: [{ label: "Count", data }] },
+            options: {
+              responsive: false,
+              plugins: { legend: { display: false } },
+            },
+          });
+        }
+
+        reportPages.forEach((p, i) => {
+          charts.push(makeTs(i, p.timeseries));
+          charts.push(makeHist(i, p.histogram));
+        });
+
+        // Let Puppeteer know charts finished rendering
+        setTimeout(() => {
+          window.__chartsReady = true;
+        }, 400);
+      })();
+    </script>
+  </body>
+</html>

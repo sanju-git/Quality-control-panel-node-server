@@ -28,7 +28,7 @@ exports.generatePartHistoryReport = async (req, res) => {
         if (!formattedData || formattedData.length == 0) {
             return res.status(400).json({ success: false, message: "No data available" });
         }
-        formattedData = formattedData.slice(0, 5);
+        // formattedData = formattedData.slice(0, 5);
         const jsonData = {
             metadata: {
                 reportName: "Part History",

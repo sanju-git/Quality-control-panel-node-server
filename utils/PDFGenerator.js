@@ -24,29 +24,63 @@ const logoBase64 = fs.readFileSync(logoPath).toString("base64");
 // Function to generate PDF Buffer
 function generatePdfBuffer(inputData) {
     return new Promise((resolve, reject) => {
+        // --- HEADER SECTION ---
         const headerSection = {
-            columns: [
-                {
-                    image: "data:image/png;base64," + logoBase64,
-                    width: 80,
-                },
-                [
-                    { text: inputData.metadata.reportName + " Report", style: "header" },
-                    {
-                        text: `Date - From: ${inputData.metadata.startDate}   To: ${inputData.metadata.endDate}`,
-                        style: "subheader",
-                    },
+            table: {
+                widths: ['auto', '*', 'auto'],
+                body: [
+                    // Row 1: Logo, Report Name, Date
+                    [
+                        {
+                            image: "data:image/png;base64," + logoBase64,
+                            width: 80,
+                            alignment: 'left',
+                        },
+                        {
+                            text: inputData.metadata.reportName + " Report",
+                            style: "header",
+                            alignment: 'center',
+                            margin: [0, 5, 0, 0]
+                        },
+                        {
+                            text: `Date: ${inputData.metadata.startDate} - ${inputData.metadata.endDate}`,
+                            style: "subheader",
+                            alignment: 'right',
+                            margin: [0, 5, 0, 0]
+                        },
+                    ],
+                    // Row 2: Plant, Part Description, Part ID
+                    [
+                        {
+                            text: `Plant: ${inputData.metadata.plantName}`,
+                            style: 'subheader',
+                            alignment: 'left'
+                        },
+                        {
+                            text: `Part Description: ${inputData.metadata.partName}`,
+                            style: 'subheader',
+                            alignment: 'center',
+                            noWrap: true
+                        },
+                        {
+                            text: `Part ID: ${inputData.metadata.partNumber}`,
+                            style: 'subheader',
+                            alignment: 'right'
+                        },
+                    ],
                 ],
-            ],
+            },
+            layout: "headerLayout"
         };
 
+        // --- DATA TABLES SECTION ---
         let tables = [];
         inputData.data.forEach((dataset) => {
             const body = [
                 // Header row
                 [
                     { text: "Char.No", style: "tableData" },
-                    { text: "Char.Desc", style: "tableData" },
+                    { text: "Char.Desc", "style": "tableData" },
                     { text: "OP no.", style: "tableData" },
                     { text: "Date/Time", style: "tableData" },
                     { text: "Nom.val", style: "tableData" },
@@ -80,13 +114,29 @@ function generatePdfBuffer(inputData) {
             );
         });
 
+        // --- DOCUMENT DEFINITION ---
         const docDefinition = {
-            content: [headerSection, { text: "\n" }, ...tables],
+            content: [
+                headerSection,
+                ...tables
+            ],
+            layouts: {
+                headerLayout: {
+                    hLineWidth: function (i, node) {
+                        return (i === 1) ? 0.5 : 0;
+                    },
+                    vLineWidth: function () {
+                        return 0;
+                    },
+                    paddingTop: function (i) { return i === 0 ? 0 : 4; },
+                    paddingBottom: function (i, node) { return (i === node.table.body.length - 1) ? 0 : 4; }
+                }
+            },
             styles: {
-                header: { fontSize: 14, bold: true, margin: [0, 0, 0, 5] },
-                subheader: { fontSize: 10, margin: [0, 0, 0, 5] },
+                header: { fontSize: 14, bold: true },
+                subheader: { fontSize: 10 },
                 tableTitle: { fontSize: 10, bold: true },
-                tableData: { fontSize: 9 }, // smaller font
+                tableData: { fontSize: 9 },
             },
             defaultStyle: {
                 font: "Roboto",
@@ -102,6 +152,5 @@ function generatePdfBuffer(inputData) {
         pdfDoc.end();
     });
 }
-
 
 module.exports = { generatePdfBuffer };

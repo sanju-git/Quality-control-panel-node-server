@@ -3,17 +3,18 @@ const pool = require("../config/db");
 exports.getPartsData = async (req, res) => {
   try {
     let { partNumber } = req.params;
-    const result = await pool.query(`SELECT public.get_operation_status($1)`, [
-      partNumber,
-    ]);
+    const request = pool.request();
+    request.input('partNumber', partNumber);
+    
+    const result = await request.query(`SELECT dbo.get_operation_status(@partNumber) as get_operation_status`);
 
-    if (!result.rows.length) {
+    if (!result.recordset.length) {
       return res.status(404).json({ success: false, message: "No data found" });
     }
 
     const groupedData = {};
 
-    result.rows.forEach((row) => {
+    result.recordset.forEach((row) => {
       const raw = row.get_operation_status;
 
       // Remove the surrounding parentheses and split on commas outside quotes
@@ -70,17 +71,21 @@ exports.getPartsData = async (req, res) => {
 exports.getQCData = async (req, res) => {
   try {
     let { partNumber, fromDate, toDate } = req.body;
-    const result = await pool.query(
-      `SELECT public.get_operation_status_summary($1, $2, $3)`,
-      [fromDate, toDate, partNumber]
+    const request = pool.request();
+    request.input('fromDate', fromDate);
+    request.input('toDate', toDate);
+    request.input('partNumber', partNumber);
+    
+    const result = await request.query(
+      `SELECT dbo.get_operation_status_summary(@fromDate, @toDate, @partNumber) as get_operation_status_summary`
     );
 
-    if (!result.rows.length) {
+    if (!result.recordset.length) {
       return res.status(404).json({ success: false, message: "No data found" });
     }
 
     // Parse rows into structured objects
-    const formattedData = result.rows.map((row) => {
+    const formattedData = result.recordset.map((row) => {
       const value = row.get_operation_status_summary;
       // Remove parentheses and split by comma
       const [operationName, total, nokCount, okCount, okPercentage] = value

@@ -4,26 +4,31 @@ const { generatePdfBuffer } = require("../utils/PDFGenerator");
 exports.generatePartHistoryReport = async (req, res) => {
     try {
         let { operation = [], characteristics = [], fromDate, toDate, partNumber } = req.body;
-        const result = await pool.query(
-            `SELECT public.get_part_history_report($1, $2)`,
-            [fromDate, toDate]
+        const request1 = pool.request();
+        request1.input('fromDate', fromDate);
+        request1.input('toDate', toDate);
+        
+        const result = await request1.query(
+            `SELECT dbo.get_part_history_report(@fromDate, @toDate) as get_part_history_report`
         );
 
-        if (!result.rows.length) {
+        if (!result.recordset.length) {
             return res.status(404).json({ success: false, message: "No data found" });
         }
 
-        const partDetails = await pool.query(
+        const request2 = pool.request();
+        request2.input('partNumber', partNumber);
+        
+        const partDetails = await request2.query(
             `SELECT DISTINCT partname, sector
-                FROM public.dimparts 
-                WHERE partnumber = $1`,
-            [partNumber]
+                FROM dbo.dimparts 
+                WHERE partnumber = @partNumber`
         );
 
-        const partName = partDetails.rows[0].partname;
-        const plantName = partDetails.rows[0].sector;
+        const partName = partDetails.recordset[0].partname;
+        const plantName = partDetails.recordset[0].sector;
 
-        let formattedData = parseAndFormatPgData(result, operation, characteristics);
+        let formattedData = parseAndFormatMssqlData(result, operation, characteristics);
         // console.log(JSON.stringify(formattedData, null, 2));
         if (!formattedData || formattedData.length == 0) {
             return res.status(400).json({ success: false, message: "No data available" });
@@ -50,10 +55,10 @@ exports.generatePartHistoryReport = async (req, res) => {
     }
 }
 
-function parseAndFormatPgData(result, operations, characteristics) {
+function parseAndFormatMssqlData(result, operations, characteristics) {
     const grouped = new Map();
 
-    result.rows.forEach((row) => {
+    result.recordset.forEach((row) => {
         const raw = row.get_part_history_report;
 
         // Remove surrounding parentheses and split on commas outside quotes
@@ -62,7 +67,7 @@ function parseAndFormatPgData(result, operations, characteristics) {
             .match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)
             .map((v) => v.replace(/^"|"$/g, "")); // remove quotes
 
-        // Destructure the columns based on your Postgres output
+        // Destructure the columns based on your MSSQL output
         const [
             partID,
             charno,

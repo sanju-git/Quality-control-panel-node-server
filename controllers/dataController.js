@@ -8,19 +8,24 @@ exports.getCharacteristics = async (req, res) => {
             return res.status(400).json({ success: false, message: "Operations list is empty" });
         }
 
-        const result = await pool.query(
+        const request = pool.request();
+        operations.forEach((op, index) => {
+            request.input(`op${index}`, op);
+        });
+
+        const placeholders = operations.map((_, index) => `@op${index}`).join(', ');
+        const result = await request.query(
             `SELECT DISTINCT charactername 
-       FROM public.dimparameters 
-       WHERE operationnumber = ANY($1)`,
-            [operations]
+             FROM dbo.dimparameters 
+             WHERE operationnumber IN (${placeholders})`
         );
 
-        if (!result.rows.length) {
+        if (!result.recordset.length) {
             return res.status(404).json({ success: false, message: "No data found" });
         }
 
         // ✅ Transform to desired format
-        const formattedData = result.rows.map(r => ({
+        const formattedData = result.recordset.map(r => ({
             label: r.charactername,
             value: r.charactername
         }));
